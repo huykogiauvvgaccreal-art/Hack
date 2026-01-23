@@ -1,13 +1,13 @@
 --[[
-    AMETHYST HUB V2.0 | TWO TIME PERFECT INTEGRATION
+    AMETHYST HUB V2.1 | UPDATED RANGES
     Dev: DUYBEO
-    Base: V1.5.1 (Chance Optimized)
+    Base: V2.0 (Smart Logic)
     
-    [NEW] Two Time Smart Logic:
-    - Smart Range: Behind (18 studs) / Front (6 studs).
-    - Fixed Duration: Attack 1s -> Stop.
-    - Fixed Cooldown: Wait 15s -> Ready.
-    - Mobile Support: Virtual Input / Connection Fire.
+    [UPDATE] Two Time Ranges:
+    - Back: 12 studs (Was 18)
+    - Front: 5 studs (Was 6)
+    - Fixed Duration: 1s
+    - Fixed Cooldown: 15s
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -34,7 +34,7 @@ do
         Title.Size = UDim2.new(1, 0, 0.1, 0)
         Title.Position = UDim2.new(0, 0, 0.4, 0)
         Title.BackgroundTransparency = 1
-        Title.Text = "AMETHYST HUB V2.0"
+        Title.Text = "AMETHYST HUB V2.1"
         Title.Font = Enum.Font.GothamBold
         Title.TextSize = 35
         Title.TextColor3 = Color3.fromRGB(170, 85, 255)
@@ -69,8 +69,8 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "AMETHYST HUB V2.0",
-    SubTitle = "Two Time Smart",
+    Title = "AMETHYST HUB V2.1",
+    SubTitle = "Updated Ranges",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false,
@@ -279,7 +279,7 @@ do
 end
 
 -- =================================================================
--- 3. TWO TIME (SMART INTEGRATION - V2.0)
+-- 3. TWO TIME (SMART RANGES UPDATED)
 -- =================================================================
 do
     local Players = game:GetService("Players")
@@ -291,13 +291,12 @@ do
     local AttackDuration = 1.0  -- 1 giây đâm
     local CooldownTime = 15.0   -- 15 giây nghỉ
     
-    local FrontRadius = 6       -- Gần (Trước mặt)
-    local BackRadius = 18       -- Xa (Sau lưng)
+    -- [UPDATED RANGES HERE]
+    local FrontRadius = 5       -- MỚI: 5 studs
+    local BackRadius = 12       -- MỚI: 12 studs
     
     local LastAttackFinished = 0
     local DaggerButton = nil
-    
-    -- UI Status Update (Để hiển thị Cooldown trong Library)
     local StatusText = "Ready"
 
     -- Tìm Nút
@@ -399,16 +398,15 @@ do
     
     TwoTimeSec:AddToggle("TwoTimeSmart", { 
         Title = "Enable Smart Backstab", 
-        Description = "Back: 18s | Front: 6s | 1s Attack | 15s CD", 
+        Description = "Back: 12s | Front: 5s | 1s Attack | 15s CD", 
         Default = false, 
         Callback = function(state) getgenv().TwoTimeActive = state end 
     })
     
-    -- Hiển thị trạng thái (Optional notification)
     task.spawn(function()
         while true do
             if getgenv().TwoTimeActive and StatusText ~= "Searching..." and StatusText ~= "Ready" then
-                 -- Có thể thêm Notify ở đây nếu muốn spam thông báo, nhưng để tránh lag thì thôi
+                -- Optional Status Updates
             end
             task.wait(1)
         end
@@ -530,7 +528,7 @@ do
     -- ESP & Stamina
     getgenv().ESPGen = false
     getgenv().ESPPlayer = false
-    local ESPFolder = Instance.new("Folder", game.CoreGui); ESPFolder.Name = "AmethystESP_V2.0"
+    local ESPFolder = Instance.new("Folder", game.CoreGui); ESPFolder.Name = "AmethystESP_V2.1"
     
     local function CreateHighlight(obj, color, nameID, textFunc)
         local espID = nameID or obj:GetDebugId()
@@ -655,5 +653,5 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 Window:SelectTab(1)
 
-Fluent:Notify({ Title = "AMETHYST HUB V2.0", Content = "Two Time Perfect Added!", Duration = 5 })
+Fluent:Notify({ Title = "AMETHYST HUB V2.1", Content = "Two Time Updated!", Duration = 5 })
 SaveManager:LoadAutoloadConfig()
