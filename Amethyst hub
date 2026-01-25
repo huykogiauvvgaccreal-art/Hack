@@ -1,12 +1,12 @@
 --[[
-    AMETHYST HUB V2.3 | AUTO DETECT CHARACTER
+    AMETHYST HUB V2.4 | FULL AUTO DETECT
     Dev: DUYBEO
-    Base: V2.1 (Smart Ranges)
+    Base: V2.3 + Shedletsky V1.6 Integration
     
-    [UPDATE] Logic Tự Động Nhận Diện:
-    - Bạn có thể BẬT HẾT các chức năng Combat cùng lúc.
-    - Script sẽ tự kiểm tra xem bạn đang chơi con gì để kích hoạt chức năng tương ứng.
-    - Không còn báo lỗi khi bật sai nhân vật (nó chỉ đơn giản là chờ đúng nhân vật mới chạy).
+    [UPDATES]
+    - Shedletsky: Hook vào nút Slash (Fix Mobile).
+    - Logic: Bấm chiêu -> Aim 1s -> Cooldown 40s.
+    - Auto Detect: Tự nhận diện cả 3 nhân vật (Two Time, Chance, Shedletsky).
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -33,7 +33,7 @@ do
         Title.Size = UDim2.new(1, 0, 0.1, 0)
         Title.Position = UDim2.new(0, 0, 0.4, 0)
         Title.BackgroundTransparency = 1
-        Title.Text = "AMETHYST HUB V2.3"
+        Title.Text = "AMETHYST HUB V2.4"
         Title.Font = Enum.Font.GothamBold
         Title.TextSize = 35
         Title.TextColor3 = Color3.fromRGB(170, 85, 255)
@@ -68,8 +68,8 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "AMETHYST HUB V2.3",
-    SubTitle = "Auto Detect Character",
+    Title = "AMETHYST HUB V2.4",
+    SubTitle = "Full Auto Detect",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false,
@@ -109,22 +109,39 @@ local Tabs = {
 }
 
 -- =================================================================
--- 1. SHEDLETSKY AIMBOT (AUTO DETECT)
+-- 1. SHEDLETSKY AIMBOT (AUTO DETECT + CLICK HOOK)
 -- =================================================================
 do
     getgenv().ShedletskyActive = false
     local shedletskyRange = 80
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local RunService = game:GetService("RunService")
     
-    local RemoteEvent = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("RemoteEvent")
-    local isAiming = false
-    local aimEndTime = 0
-    local aimTarget = nil
+    local SlashCooldown = 40.0
+    local AimDuration = 1.0
+    local LastSlashTime = 0
+    
+    local IsAiming = false
+    local AimEndTime = 0
+    local AimTarget = nil
+    local SlashButton = nil
+    local Connection = nil -- Để lưu kết nối nút bấm
 
-    local function getClosestKiller()
+    -- Hàm tìm nút Slash
+    local function FindSlashButton()
+        local gui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not gui then return nil end
+        local main = gui:FindFirstChild("MainUI")
+        local container = main and main:FindFirstChild("AbilityContainer")
+        if container then
+            return container:FindFirstChild("Slash") or container:FindFirstChild("Katana")
+        end
+        return nil
+    end
+
+    -- Hàm Tìm Mục Tiêu
+    local function GetClosestKiller()
         local closest = nil
         local minDist = shedletskyRange
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -134,7 +151,7 @@ do
                     local myRoot = LocalPlayer.Character.HumanoidRootPart
                     local isKiller = false
                     if plr.Team and (plr.Team.Name == "Killers" or plr.Team.Name == "Killer") then isKiller = true end
-                    if plr.Character.Parent and (plr.Character.Parent.Name == "Killers" or plr.Character.Parent.Name == "Killer") then isKiller = true end
+                    if plr.Character.Parent and (plr.Character.Parent.Name == "Killers") then isKiller = true end
                     
                     if isKiller then
                         local dist = (hrp.Position - myRoot.Position).Magnitude
@@ -146,36 +163,61 @@ do
         return closest
     end
 
-    -- Logic này đã tự động: Nó chỉ chạy khi Server gửi sự kiện "Slash" (Chỉ Shedletsky mới có)
-    RemoteEvent.OnClientEvent:Connect(function(...)
-        local args = {...}
-        if args[1] == "UseActorAbility" and getgenv().ShedletskyActive then
-            local skill = args[2]
-            if skill == "Slash" then
-                local target = getClosestKiller()
+    -- Logic Hook vào nút Slash
+    local function HookSlashButton()
+        if not getgenv().ShedletskyActive then return end
+        
+        local btn = FindSlashButton()
+        if btn and btn ~= SlashButton then
+            SlashButton = btn
+            -- Ngắt kết nối cũ nếu có
+            if Connection then Connection:Disconnect() end
+            
+            -- Kết nối mới: MouseButton1Click (Fix lỗi giữ nút)
+            Connection = SlashButton.MouseButton1Click:Connect(function()
+                if not getgenv().ShedletskyActive then return end
+                
+                -- Check Cooldown
+                if tick() - LastSlashTime < SlashCooldown then return end
+                
+                local target = GetClosestKiller()
                 if target then
-                    aimTarget = target
-                    isAiming = true
-                    aimEndTime = tick() + 0.5 
+                    AimTarget = target
+                    IsAiming = true
+                    AimEndTime = tick() + AimDuration
+                    LastSlashTime = tick()
+                    
+                    Fluent:Notify({Title = "Shedletsky", Content = "Slashing!", Duration = 1})
                 end
+            end)
+        end
+    end
+    
+    -- Loop kiểm tra nút liên tục (Auto Detect)
+    task.spawn(function()
+        while true do
+            if getgenv().ShedletskyActive then
+                HookSlashButton()
             end
+            task.wait(1)
         end
     end)
 
+    -- Loop Aim
     RunService.RenderStepped:Connect(function()
-        if getgenv().ShedletskyActive and isAiming and aimTarget and aimTarget.Parent then
-            if tick() < aimEndTime then
+        if getgenv().ShedletskyActive and IsAiming and AimTarget and AimTarget.Parent then
+            if tick() < AimEndTime then
                 local myChar = LocalPlayer.Character
                 if myChar and myChar:FindFirstChild("HumanoidRootPart") then
                     local myRoot = myChar.HumanoidRootPart
                     local human = myChar:FindFirstChild("Humanoid")
                     if human then human.AutoRotate = false end
-                    local targetPos = aimTarget.Position
+                    local targetPos = AimTarget.Position
                     myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(targetPos.X, myRoot.Position.Y, targetPos.Z))
                 end
             else
-                isAiming = false
-                aimTarget = nil
+                IsAiming = false
+                AimTarget = nil
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
                     LocalPlayer.Character.Humanoid.AutoRotate = true
                 end
@@ -183,10 +225,10 @@ do
         end
     end)
 
-    local ShedSec = Tabs.Combat:AddSection("Shedletsky")
+    local ShedSec = Tabs.Combat:AddSection("Shedletsky (Auto Detect)")
     ShedSec:AddToggle("ShedletskyToggle", { 
         Title = "Enable Shedletsky Aimbot", 
-        Description = "Tự kích hoạt khi dùng Shedletsky",
+        Description = "Tự nhận diện nút Slash",
         Default = false, 
         Callback = function(state) getgenv().ShedletskyActive = state end 
     })
@@ -194,7 +236,7 @@ do
 end
 
 -- =================================================================
--- 2. CHANCE AIMBOT (AUTO DETECT)
+-- 2. CHANCE AIMBOT (AUTO DETECT - GIỮ NGUYÊN)
 -- =================================================================
 do
     local Players = game:GetService("Players")
@@ -209,11 +251,9 @@ do
     local prevFlintVisibleAim = false
     local lastTriggerTime = 0
 
-    -- Hàm check nhân vật Chance
     local function IsChanceCharacter()
         local char = LocalPlayer.Character
         if not char then return false end
-        -- Kiểm tra Model súng
         if char:FindFirstChild("Flintlock", true) or char:FindFirstChild("Chance", true) then
             return true
         end
@@ -268,7 +308,6 @@ do
     end
 
     RunService.RenderStepped:Connect(function()
-        -- CHỈ CHẠY NẾU BẬT TOGGLE VÀ ĐÚNG LÀ CHANCE
         if getgenv().ChanceActive and IsChanceCharacter() and Humanoid and HRP then
             local isVisible = isFlintlockVisible()
             if isVisible and not prevFlintVisibleAim and not aiming then
@@ -291,17 +330,17 @@ do
         end
     end)
 
-    local ChanceSec = Tabs.Combat:AddSection("Chance")
+    local ChanceSec = Tabs.Combat:AddSection("Chance (Auto Detect)")
     ChanceSec:AddToggle("ChanceToggle", { 
         Title = "Enable Chance Aimbot", 
-        Description = "Tự kích hoạt khi dùng Chance", 
+        Description = "Tự nhận diện súng Flintlock", 
         Default = false, 
         Callback = function(state) getgenv().ChanceActive = state end 
     })
 end
 
 -- =================================================================
--- 3. TWO TIME (AUTO DETECT)
+-- 3. TWO TIME (AUTO DETECT - GIỮ NGUYÊN V2.1)
 -- =================================================================
 do
     local Players = game:GetService("Players")
@@ -311,14 +350,11 @@ do
     getgenv().TwoTimeActive = false
     local AttackDuration = 1.0
     local CooldownTime = 15.0
-    local FrontRadius = 5  -- 5 Studs
-    local BackRadius = 12  -- 12 Studs
+    local FrontRadius = 5
+    local BackRadius = 12
     
     local LastAttackFinished = 0
     local DaggerButton = nil
-    
-    -- UI Status ảo để báo trạng thái ngầm (không cần thiết lắm nhưng để debug)
-    local StatusText = "Waiting..."
 
     local function FindDaggerButton()
         local gui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -359,17 +395,11 @@ do
         if dot > 0.2 then return FrontRadius else return BackRadius end
     end
 
-    -- Loop
     local isBusy = false
     RunService.RenderStepped:Connect(function()
-        -- CHỈ CHẠY NẾU BẬT TOGGLE VÀ CÓ NÚT DAO (Là Two Time)
+        -- Auto Detect: Chỉ chạy khi Bật Toggle VÀ Có nút Dagger
         if not getgenv().TwoTimeActive or isBusy then return end
-        
-        -- Logic Check Two Time
-        if not FindDaggerButton() then 
-            StatusText = "Not Two Time"
-            return 
-        end 
+        if not FindDaggerButton() then return end 
 
         local timeSinceLast = tick() - LastAttackFinished
         if timeSinceLast < CooldownTime then return end
@@ -407,23 +437,22 @@ do
         end
     end)
 
-    local TwoTimeSec = Tabs.Combat:AddSection("Two Time")
+    local TwoTimeSec = Tabs.Combat:AddSection("Two Time (Auto Detect)")
     TwoTimeSec:AddToggle("TwoTimeSmart", { 
         Title = "Enable Smart Backstab", 
-        Description = "Tự kích hoạt khi dùng Two Time", 
+        Description = "Tự nhận diện nút Dagger", 
         Default = false, 
         Callback = function(state) getgenv().TwoTimeActive = state end 
     })
     
-    -- Thêm chú thích cho người dùng
     Tabs.Combat:AddParagraph({
-        Title = "Hướng dẫn sử dụng",
-        Content = "Bạn có thể BẬT CÙNG LÚC tất cả chức năng ở trên. Script sẽ tự động nhận diện nhân vật bạn đang chơi và dùng chức năng phù hợp."
+        Title = "Hướng dẫn",
+        Content = "Bạn có thể bật cả 3 chức năng. Script sẽ tự động nhận diện nhân vật."
     })
 end
 
 -- =================================================================
--- 4. AUTO FARM & ESP (V1.5 GỐC - GIỮ NGUYÊN)
+-- 4. AUTO FARM & ESP (GIỮ NGUYÊN)
 -- =================================================================
 do
     local Players = game:GetService("Players")
@@ -537,7 +566,7 @@ do
     -- ESP & Stamina
     getgenv().ESPGen = false
     getgenv().ESPPlayer = false
-    local ESPFolder = Instance.new("Folder", game.CoreGui); ESPFolder.Name = "AmethystESP_V2.3"
+    local ESPFolder = Instance.new("Folder", game.CoreGui); ESPFolder.Name = "AmethystESP_V2.4"
     
     local function CreateHighlight(obj, color, nameID, textFunc)
         local espID = nameID or obj:GetDebugId()
@@ -662,5 +691,5 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 Window:SelectTab(1)
 
-Fluent:Notify({ Title = "AMETHYST HUB V2.3", Content = "Auto Detect Mode!", Duration = 5 })
+Fluent:Notify({ Title = "AMETHYST HUB V2.4", Content = "All Features Updated!", Duration = 5 })
 SaveManager:LoadAutoloadConfig()
