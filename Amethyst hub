@@ -104,8 +104,91 @@ local Tabs = {
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
+-- [THÊM MỚI] VEERONICA AUTO TRICK V1 (HUTAO LOGIC)
+-- Code này chèn thêm vào, không đụng chạm các phần dưới
+do
+    getgenv().VeeronicaTrickActive = false
+    local VerConnections = {}
+    local VerHighlights = {}
+    local VerLastTrick = 0
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+
+    -- Hàm Hook vào folder Behavior của Veeronica
+    local function HookVeeronica()
+        -- Clear cũ
+        for _, c in pairs(VerConnections) do c:Disconnect() end
+        VerConnections = {}
+        VerHighlights = {}
+        
+        local ok, behaviorFolder = pcall(function()
+            return game.ReplicatedStorage.Assets.Survivors.Veeronica.Behavior
+        end)
+        
+        if not ok or not behaviorFolder then return end
+        
+        -- Theo dõi Highlight thêm vào
+        table.insert(VerConnections, behaviorFolder.DescendantAdded:Connect(function(child)
+            if child:IsA("Highlight") then VerHighlights[child] = true end
+        end))
+        -- Theo dõi Highlight xóa đi
+        table.insert(VerConnections, behaviorFolder.DescendantRemoving:Connect(function(child)
+            if child:IsA("Highlight") then VerHighlights[child] = nil end
+        end))
+        
+        -- Quét Highlight hiện có
+        for _, child in ipairs(behaviorFolder:GetDescendants()) do
+            if child:IsA("Highlight") then VerHighlights[child] = true end
+        end
+    end
+
+    -- Loop kiểm tra và kích hoạt Trick
+    task.spawn(function()
+        HookVeeronica() -- Hook ngay khi chạy script
+        while true do
+            if getgenv().VeeronicaTrickActive then
+                local myChar = LocalPlayer.Character
+                if myChar and tick() - VerLastTrick > 0.1 then
+                    for h, _ in pairs(VerHighlights) do
+                        -- Nếu Highlight thuộc về nhân vật của mình -> Cần Trick
+                        if h.Adornee == myChar or h.Adornee:IsDescendantOf(myChar) then
+                            -- Tìm nút SprintingButton (Nút Trick)
+                            local gui = LocalPlayer:FindFirstChild("PlayerGui")
+                            local btn = gui and gui:FindFirstChild("MainUI") and gui.MainUI:FindFirstChild("SprintingButton")
+                            
+                            if btn then
+                                -- Kích hoạt nút (Hutao Logic: Fire MouseButton1Down)
+                                for _, v in pairs(getconnections(btn.MouseButton1Down)) do
+                                    pcall(function()
+                                        v:Fire()
+                                        if v.Function then v:Function() end
+                                    end)
+                                end
+                                Fluent:Notify({Title = "Auto Trick", Content = "Jumped!", Duration = 1})
+                                VerLastTrick = tick()
+                                break 
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+
+    -- UI Toggle cho Veeronica
+    local VerSec = Tabs.Combat:AddSection("Veeronica")
+    VerSec:AddToggle("VeeronicaTrickToggle", { 
+        Title = "Auto Trick V1", 
+        Description = "Tự động nhảy khi có highlight (Hutao Logic)", 
+        Default = false, 
+        Callback = function(state) getgenv().VeeronicaTrickActive = state end 
+    })
+end
+
 -- =================================================================
 -- 1. GUEST 1337 (LOGIC V2.0 - NO DELAY)
+-- [GIỮ NGUYÊN CODE CŨ CỦA BẠN TỪ DÒNG NÀY TRỞ XUỐNG]
 -- =================================================================
 do
     getgenv().GuestActive = false
