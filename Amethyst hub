@@ -2,7 +2,7 @@
     AMETHYST HUB V1.0 (Fosaken)
     Dev: DUYBEO
     Game: Forsaken / The Stalker: Reborn
-    Status: Official Release (Veeronica Auto Trick Added)
+    Status: Official Release (Veeronica Auto Trick + Item ESP V3)
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -104,8 +104,12 @@ local Tabs = {
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
 -- =================================================================
--- [MỚI] VEERONICA AUTO TRICK (HUTAO LOGIC)
+-- [VEERONICA] AUTO TRICK (HUTAO LOGIC)
 -- =================================================================
 do
     getgenv().VeeronicaTrickActive = false
@@ -114,7 +118,6 @@ do
     local LocalPlayer = Players.LocalPlayer
     local TrickLoop = nil
 
-    -- Tạo Section Veeronica trong Tab Combat
     local VerSection = Tabs.Combat:AddSection("Veeronica")
 
     local function getBehaviorFolder()
@@ -143,35 +146,24 @@ do
     local function triggerSprint()
         local btn = getSprintingButton()
         if not btn then return end
-        
-        -- Kích hoạt mọi kết nối MouseButton1Down (Logic Hutao)
-        local conns = getconnections(btn.MouseButton1Down)
-        for _, v in pairs(conns) do
-            pcall(function()
-                v:Fire()
-                if v.Function then v:Function() end
-            end)
+        for _, v in pairs(getconnections(btn.MouseButton1Down)) do
+            pcall(function() v:Fire(); if v.Function then v:Function() end end)
         end
-        -- Backup kích hoạt thêm Activated
-        local conns2 = getconnections(btn.Activated)
-        for _, v in pairs(conns2) do pcall(function() v:Fire() end) end
+        for _, v in pairs(getconnections(btn.Activated)) do pcall(function() v:Fire() end) end
     end
 
     local function StartAutoTrick()
         if TrickLoop then task.cancel(TrickLoop); TrickLoop = nil end
-        
         TrickLoop = task.spawn(function()
             while task.wait(0.1) do
                 if not getgenv().VeeronicaTrickActive then break end
-                
                 local folder = getBehaviorFolder()
                 if folder then
-                    -- Quét tất cả highlight trong folder behavior
                     for _, child in ipairs(folder:GetDescendants()) do
                         if child:IsA("Highlight") and adorneeIsPlayerCharacter(child) then
                             triggerSprint()
                             Fluent:Notify({Title = "Veeronica", Content = "Auto Trick Executed!", Duration = 1})
-                            task.wait(0.5) -- Cooldown nhẹ
+                            task.wait(0.5)
                             break
                         end
                     end
@@ -196,7 +188,7 @@ end
 -- =================================================================
 do
     getgenv().GuestActive = false
-    local GuestRange = 7 -- Cố định 7 mét
+    local GuestRange = 7
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
     local RunService = game:GetService("RunService")
@@ -205,11 +197,8 @@ do
     local AimEndTime = 0
     local AimTarget = nil
     local ComboCooldown = false 
+    local BlockBtn, PunchBtn = nil, nil
 
-    local BlockBtn = nil
-    local PunchBtn = nil
-
-    -- Hàm Fire (Bắn tín hiệu)
     local function FireButton(button)
         if not button then return end
         for _, conn in ipairs(getconnections(button.MouseButton1Click)) do conn:Fire() end
@@ -217,48 +206,30 @@ do
         pcall(function() button:Activate() end)
     end
 
-    -- Tìm nút Block/Punch
     local function FindGuestButtons()
         local gui = LocalPlayer:FindFirstChild("PlayerGui")
         if not gui then return end
         local main = gui:FindFirstChild("MainUI")
         local container = main and main:FindFirstChild("AbilityContainer")
-        
         if container then
             BlockBtn = container:FindFirstChild("Block") or container:FindFirstChild("Shield")
             PunchBtn = container:FindFirstChild("Punch") or container:FindFirstChild("Counter")
         end
     end
 
-    -- Logic Rapid Combo (Block -> Spam Punch)
     local function TriggerRapidCombo(target)
         ComboCooldown = true
-        
-        -- BƯỚC 1: BLOCK & AIM NGAY LẬP TỨC
         FireButton(BlockBtn)
         Fluent:Notify({Title = "Guest 1337", Content = "BLOCK & SPAM PUNCH!", Duration = 1})
-
-        IsAiming = true
-        AimTarget = target
-        AimEndTime = tick() + 1.0 -- Aim 1 giây
-        
-        -- BƯỚC 2: SPAM PUNCH (Logic Two Time)
+        IsAiming = true; AimTarget = target; AimEndTime = tick() + 1.0
         task.spawn(function()
-            for i = 1, 20 do -- Spam 20 lần trong 0.4s
-                if PunchBtn then FireButton(PunchBtn) end
-                task.wait(0.02)
-            end
+            for i = 1, 20 do if PunchBtn then FireButton(PunchBtn) end task.wait(0.02) end
         end)
-        
-        -- Cooldown nhẹ
         task.delay(1.5, function() ComboCooldown = false end)
     end
 
-    -- Loop chính Guest
     RunService.RenderStepped:Connect(function()
         if not getgenv().GuestActive then return end
-        
-        -- A. AIMBOT LOGIC
         if IsAiming then
             if tick() < AimEndTime and AimTarget and AimTarget.Parent then
                 local myChar = LocalPlayer.Character
@@ -266,43 +237,29 @@ do
                     local myRoot = myChar.HumanoidRootPart
                     local human = myChar:FindFirstChild("Humanoid")
                     if human then human.AutoRotate = false end
-                    
                     local targetPos = AimTarget.Position
                     myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(targetPos.X, myRoot.Position.Y, targetPos.Z))
                 end
             else
-                IsAiming = false
-                AimTarget = nil
+                IsAiming = false; AimTarget = nil
                 local myChar = LocalPlayer.Character
-                if myChar and myChar:FindFirstChild("Humanoid") then
-                    myChar.Humanoid.AutoRotate = true 
-                end
+                if myChar and myChar:FindFirstChild("Humanoid") then myChar.Humanoid.AutoRotate = true end
             end
         end
-        
-        -- B. DETECT KILLER
         if not ComboCooldown then
             local killers = workspace:FindFirstChild("Players") and workspace.Players:FindFirstChild("Killers")
             local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
             if killers and myRoot then
                 for _, k in ipairs(killers:GetChildren()) do
                     local kRoot = k:FindFirstChild("HumanoidRootPart")
                     local kHum = k:FindFirstChild("Humanoid")
-                    
                     if kRoot and kHum and kHum.Health > 0 then
                         if (kRoot.Position - myRoot.Position).Magnitude <= GuestRange then
                             local animator = kHum:FindFirstChild("Animator")
                             if animator then
                                 for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                                    -- Check Action Priority
-                                    if (track.Priority == Enum.AnimationPriority.Action or 
-                                        track.Priority == Enum.AnimationPriority.Action2 or 
-                                        track.Priority == Enum.AnimationPriority.Action3) 
-                                        and track.Speed > 0 and track.TimePosition < 0.4 then
-                                        
-                                        TriggerRapidCombo(kRoot)
-                                        return
+                                    if (track.Priority == Enum.AnimationPriority.Action or track.Priority == Enum.AnimationPriority.Action2 or track.Priority == Enum.AnimationPriority.Action3) and track.Speed > 0 and track.TimePosition < 0.4 then
+                                        TriggerRapidCombo(kRoot); return
                                     end
                                 end
                             end
@@ -312,26 +269,13 @@ do
             end
         end
     end)
-    
-    -- Auto Find Button
-    task.spawn(function()
-        while true do
-            if getgenv().GuestActive then FindGuestButtons() end
-            task.wait(1)
-        end
-    end)
-
+    task.spawn(function() while true do if getgenv().GuestActive then FindGuestButtons() end task.wait(1) end end)
     local GuestSec = Tabs.Combat:AddSection("Guest 1337")
-    GuestSec:AddToggle("GuestToggle", { 
-        Title = "Enable Guest Auto Counter", 
-        Description = "Block -> Spam Punch (Range 7)", 
-        Default = false, 
-        Callback = function(state) getgenv().GuestActive = state end 
-    })
+    GuestSec:AddToggle("GuestToggle", { Title = "Enable Guest Auto Counter", Description = "Block -> Spam Punch (Range 7)", Default = false, Callback = function(state) getgenv().GuestActive = state end })
 end
 
 -- =================================================================
--- 2. SHEDLETSKY AIMBOT (AUTO DETECT + CLICK HOOK)
+-- 2. SHEDLETSKY AIMBOT
 -- =================================================================
 do
     getgenv().ShedletskyActive = false
@@ -339,42 +283,26 @@ do
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
     local RunService = game:GetService("RunService")
-    
-    local SlashCooldown = 40.0
-    local AimDuration = 1.0
-    local LastSlashTime = 0
-    
-    local IsAiming = false
-    local AimEndTime = 0
-    local AimTarget = nil
-    local SlashButton = nil
-    local Connection = nil 
+    local SlashCooldown, AimDuration, LastSlashTime = 40.0, 1.0, 0
+    local IsAiming, AimEndTime, AimTarget, SlashButton, Connection = false, 0, nil, nil, nil
 
     local function FindSlashButton()
         local gui = LocalPlayer:FindFirstChild("PlayerGui")
         if not gui then return nil end
         local main = gui:FindFirstChild("MainUI")
         local container = main and main:FindFirstChild("AbilityContainer")
-        if container then
-            return container:FindFirstChild("Slash") or container:FindFirstChild("Katana")
-        end
-        return nil
+        return container and (container:FindFirstChild("Slash") or container:FindFirstChild("Katana"))
     end
 
     local function GetClosestKiller()
-        local closest = nil
-        local minDist = shedletskyRange
+        local closest, minDist = nil, shedletskyRange
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
                 local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
                 if hrp and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local myRoot = LocalPlayer.Character.HumanoidRootPart
-                    local isKiller = false
-                    if plr.Team and (plr.Team.Name == "Killers" or plr.Team.Name == "Killer") then isKiller = true end
-                    if plr.Character.Parent and (plr.Character.Parent.Name == "Killers") then isKiller = true end
-                    
+                    local isKiller = (plr.Team and (plr.Team.Name == "Killers" or plr.Team.Name == "Killer")) or (plr.Character.Parent and plr.Character.Parent.Name == "Killers")
                     if isKiller then
-                        local dist = (hrp.Position - myRoot.Position).Magnitude
+                        local dist = (hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
                         if dist < minDist then minDist = dist; closest = hrp end
                     end
                 end
@@ -385,35 +313,23 @@ do
 
     local function HookSlashButton()
         if not getgenv().ShedletskyActive then return end
-        
         local btn = FindSlashButton()
         if btn and btn ~= SlashButton then
             SlashButton = btn
             if Connection then Connection:Disconnect() end
-            
             Connection = SlashButton.MouseButton1Click:Connect(function()
                 if not getgenv().ShedletskyActive then return end
                 if tick() - LastSlashTime < SlashCooldown then return end
-                
                 local target = GetClosestKiller()
                 if target then
-                    AimTarget = target
-                    IsAiming = true
-                    AimEndTime = tick() + AimDuration
-                    LastSlashTime = tick()
+                    AimTarget = target; IsAiming = true; AimEndTime = tick() + AimDuration; LastSlashTime = tick()
                     Fluent:Notify({Title = "Shedletsky", Content = "Slashing!", Duration = 1})
                 end
             end)
         end
     end
     
-    task.spawn(function()
-        while true do
-            if getgenv().ShedletskyActive then HookSlashButton() end
-            task.wait(1)
-        end
-    end)
-
+    task.spawn(function() while true do if getgenv().ShedletskyActive then HookSlashButton() end task.wait(1) end end)
     RunService.RenderStepped:Connect(function()
         if getgenv().ShedletskyActive and IsAiming and AimTarget and AimTarget.Parent then
             if tick() < AimEndTime then
@@ -426,22 +342,13 @@ do
                     myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(targetPos.X, myRoot.Position.Y, targetPos.Z))
                 end
             else
-                IsAiming = false
-                AimTarget = nil
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                    LocalPlayer.Character.Humanoid.AutoRotate = true
-                end
+                IsAiming = false; AimTarget = nil
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.AutoRotate = true end
             end
         end
     end)
-
     local ShedSec = Tabs.Combat:AddSection("Shedletsky (Auto Detect)")
-    ShedSec:AddToggle("ShedletskyToggle", { 
-        Title = "Enable Shedletsky Aimbot", 
-        Description = "Tự nhận diện nút Slash",
-        Default = false, 
-        Callback = function(state) getgenv().ShedletskyActive = state end 
-    })
+    ShedSec:AddToggle("ShedletskyToggle", { Title = "Enable Shedletsky Aimbot", Description = "Tự nhận diện nút Slash", Default = false, Callback = function(state) getgenv().ShedletskyActive = state end })
     ShedSec:AddSlider("SlashRange", { Title = "Skill Range", Default = 80, Min = 10, Max = 150, Rounding = 0, Callback = function(Val) shedletskyRange = Val end })
 end
 
@@ -452,26 +359,17 @@ do
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
-
     getgenv().ChanceActive = false
     local aimTargets = {"Slasher", "c00lkidd", "JohnDoe", "1x1x1x1", "Noli", "Guest 666", "Sixer"}
-
-    local Humanoid, HRP = nil, nil
-    local aiming = false
-    local prevFlintVisibleAim = false
-    local lastTriggerTime = 0
+    local Humanoid, HRP, aiming, prevFlintVisibleAim, lastTriggerTime = nil, nil, false, false, 0
 
     local function IsChanceCharacter()
         local char = LocalPlayer.Character
         if not char then return false end
-        if char:FindFirstChild("Flintlock", true) or char:FindFirstChild("Chance", true) then return true end
-        return false
+        return char:FindFirstChild("Flintlock", true) or char:FindFirstChild("Chance", true)
     end
 
-    local function setupCharacter(char)
-        Humanoid = char:WaitForChild("Humanoid", 5)
-        HRP = char:WaitForChild("HumanoidRootPart", 5)
-    end
+    local function setupCharacter(char) Humanoid = char:WaitForChild("Humanoid", 5); HRP = char:WaitForChild("HumanoidRootPart", 5) end
     if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
     LocalPlayer.CharacterAdded:Connect(setupCharacter)
 
@@ -492,9 +390,7 @@ do
                 local char = plr.Character
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    for _, targetName in ipairs(aimTargets) do
-                        if char.Name:lower():find(targetName:lower()) then return hrp end
-                    end
+                    for _, targetName in ipairs(aimTargets) do if char.Name:lower():find(targetName:lower()) then return hrp end end
                     if plr.Team and plr.Team.Name == "Killers" then return hrp end
                 end
             end
@@ -502,49 +398,32 @@ do
         return nil
     end
 
-    local function computeAimPos(targetHRP)
-        local velocity = targetHRP.Velocity
-        return targetHRP.Position + (velocity * (4 / 60))
-    end
-
+    local function computeAimPos(targetHRP) return targetHRP.Position + (targetHRP.Velocity * (4 / 60)) end
     local function faceInstant(toPos)
         if not HRP or not toPos then return end
         local fromPos = HRP.Position
         local lookAt = Vector3.new(toPos.X, fromPos.Y, toPos.Z)
-        local targetCF = CFrame.new(fromPos, lookAt)
-        HRP.CFrame = HRP.CFrame:Lerp(targetCF, 0.99)
+        HRP.CFrame = HRP.CFrame:Lerp(CFrame.new(fromPos, lookAt), 0.99)
     end
 
     RunService.RenderStepped:Connect(function()
         if getgenv().ChanceActive and IsChanceCharacter() and Humanoid and HRP then
             local isVisible = isFlintlockVisible()
-            if isVisible and not prevFlintVisibleAim and not aiming then
-                lastTriggerTime = tick()
-                aiming = true
-            end
+            if isVisible and not prevFlintVisibleAim and not aiming then lastTriggerTime = tick(); aiming = true end
             prevFlintVisibleAim = isVisible
-            
             if aiming then
-                local elapsed = tick() - lastTriggerTime
-                if elapsed <= 1.7 then
+                if tick() - lastTriggerTime <= 1.7 then
                     Humanoid.AutoRotate = false
                     local targetHRP = getValidTarget()
                     if targetHRP then faceInstant(computeAimPos(targetHRP)) end
                 else
-                    aiming = false
-                    Humanoid.AutoRotate = true
+                    aiming = false; Humanoid.AutoRotate = true
                 end
             end
         end
     end)
-
     local ChanceSec = Tabs.Combat:AddSection("Chance (Auto Detect)")
-    ChanceSec:AddToggle("ChanceToggle", { 
-        Title = "Enable Chance Aimbot", 
-        Description = "Tự nhận diện súng Flintlock", 
-        Default = false, 
-        Callback = function(state) getgenv().ChanceActive = state end 
-    })
+    ChanceSec:AddToggle("ChanceToggle", { Title = "Enable Chance Aimbot", Description = "Tự nhận diện súng Flintlock", Default = false, Callback = function(state) getgenv().ChanceActive = state end })
 end
 
 -- =================================================================
@@ -554,25 +433,16 @@ do
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
-    
     getgenv().TwoTimeActive = false
-    local AttackDuration = 1.0
-    local CooldownTime = 15.0
-    local FrontRadius = 5
-    local BackRadius = 12
-    
-    local LastAttackFinished = 0
-    local DaggerButton = nil
+    local AttackDuration, CooldownTime, FrontRadius, BackRadius = 1.0, 15.0, 5, 12
+    local LastAttackFinished, DaggerButton, isBusy = 0, nil, false
 
     local function FindDaggerButton()
         local gui = LocalPlayer:FindFirstChild("PlayerGui")
         if not gui then return nil end
         local main = gui:FindFirstChild("MainUI")
         local container = main and main:FindFirstChild("AbilityContainer")
-        if container then
-            DaggerButton = container:FindFirstChild("Dagger")
-            return DaggerButton
-        end
+        if container then DaggerButton = container:FindFirstChild("Dagger"); return DaggerButton end
         return nil
     end
     LocalPlayer.CharacterAdded:Connect(function() task.wait(1) FindDaggerButton() end)
@@ -603,52 +473,37 @@ do
         if dot > 0.2 then return FrontRadius else return BackRadius end
     end
 
-    local isBusy = false
     RunService.RenderStepped:Connect(function()
         if not getgenv().TwoTimeActive or isBusy then return end
         if not FindDaggerButton() then return end 
-
-        local timeSinceLast = tick() - LastAttackFinished
-        if timeSinceLast < CooldownTime then return end
+        if tick() - LastAttackFinished < CooldownTime then return end
         
         local killers = workspace:FindFirstChild("Players") and workspace.Players:FindFirstChild("Killers")
         if not killers then return end
-        
         local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
 
         for _, k in ipairs(killers:GetChildren()) do
             local kRoot = k:FindFirstChild("HumanoidRootPart")
             local kHum = k:FindFirstChild("Humanoid")
-            
             if kRoot and kHum and kHum.Health > 0 then
                 local dist = (kRoot.Position - myRoot.Position).Magnitude
                 local triggerDist = GetTriggerDistance(kRoot, myRoot)
-                
                 if dist <= triggerDist then
                     isBusy = true
                     local start = tick()
                     while tick() - start < AttackDuration and getgenv().TwoTimeActive do
                         if not kRoot.Parent then break end
-                        TeleportAndLock(kRoot)
-                        ForceSkill()
-                        RunService.RenderStepped:Wait()
+                        TeleportAndLock(kRoot); ForceSkill(); RunService.RenderStepped:Wait()
                     end
-                    LastAttackFinished = tick()
-                    isBusy = false
+                    LastAttackFinished = tick(); isBusy = false
                     return
                 end
             end
         end
     end)
-
     local TwoTimeSec = Tabs.Combat:AddSection("Two Time (Auto Detect)")
-    TwoTimeSec:AddToggle("TwoTimeSmart", { 
-        Title = "Enable Smart Backstab", 
-        Description = "Tự nhận diện nút Dagger", 
-        Default = false, 
-        Callback = function(state) getgenv().TwoTimeActive = state end 
-    })
+    TwoTimeSec:AddToggle("TwoTimeSmart", { Title = "Enable Smart Backstab", Description = "Tự nhận diện nút Dagger", Default = false, Callback = function(state) getgenv().TwoTimeActive = state end })
 end
 
 -- =================================================================
@@ -658,9 +513,7 @@ do
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
     local FarmSec = Tabs.Farm:AddSection("Generator Farm")
-    getgenv().AutoFarm = false
-    getgenv().ManualFix = false
-    local IgnoreList = {} 
+    getgenv().AutoFarm = false; getgenv().ManualFix = false; local IgnoreList = {} 
     
     local function GetProgress(gen)
         if not gen then return 100 end
@@ -669,9 +522,7 @@ do
     end
 
     local function GetNextGenerator()
-        local closest = 99999
-        local target = nil
-        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        local closest, target, root = 99999, nil, LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
         if not root then return nil end
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj.Name == "Generator" and obj:IsA("Model") then
@@ -707,8 +558,7 @@ do
                                 task.wait()
                             end
                             if not getgenv().AutoFarm then return end
-                            root.Velocity = Vector3.new(0, -80, 0)
-                            task.wait(0.5)
+                            root.Velocity = Vector3.new(0, -80, 0); task.wait(0.5)
                             local prompt = gen:FindFirstChild("Main") and gen.Main:FindFirstChild("Prompt")
                             if prompt then fireproximityprompt(prompt) end
                             while getgenv().AutoFarm and GetProgress(gen) < 100 do
@@ -718,15 +568,10 @@ do
                                 task.wait(1.5)
                                 if (root.Position - pivot.Position).Magnitude > 15 then break end
                             end
-                            if GetProgress(gen) >= 100 then
-                                IgnoreList[gen] = true
-                                Fluent:Notify({Title = "Done", Content = "Next Generator", Duration = 2})
-                                task.wait(0.5)
-                            end
+                            if GetProgress(gen) >= 100 then IgnoreList[gen] = true; Fluent:Notify({Title = "Done", Content = "Next Generator", Duration = 2}); task.wait(0.5) end
                         end
                     else
-                        getgenv().AutoFarm = false
-                        Fluent:Notify({Title = "Info", Content = "All Fixed!", Duration = 5})
+                        getgenv().AutoFarm = false; Fluent:Notify({Title = "Info", Content = "All Fixed!", Duration = 5})
                     end
                 end)
             end
@@ -747,9 +592,7 @@ do
                             if main then
                                 local dist = (root.Position - main.Position).Magnitude
                                 if dist < 15 and GetProgress(obj) < 100 then
-                                    if obj:FindFirstChild("Remotes") and obj.Remotes:FindFirstChild("RE") then
-                                        obj.Remotes.RE:FireServer()
-                                    end
+                                    if obj:FindFirstChild("Remotes") and obj.Remotes:FindFirstChild("RE") then obj.Remotes.RE:FireServer() end
                                 end
                             end
                         end
@@ -772,33 +615,10 @@ do
         local espID = nameID or obj:GetDebugId()
         local hl = ESPFolder:FindFirstChild(espID)
         if not hl then
-            hl = Instance.new("Highlight")
-            hl.Name = espID
-            hl.Adornee = obj
-            hl.Parent = ESPFolder
-            hl.FillColor = color
-            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-            hl.FillTransparency = 0.5
-            hl.OutlineTransparency = 0
-            
-            local bb = Instance.new("BillboardGui")
-            bb.Adornee = obj
-            bb.Size = UDim2.new(0, 200, 0, 50)
-            bb.StudsOffset = Vector3.new(0, 3, 0)
-            bb.AlwaysOnTop = true
-            bb.Parent = hl
-            
-            local txt = Instance.new("TextLabel")
-            txt.Name = "InfoText"
-            txt.Size = UDim2.new(1, 0, 1, 0)
-            txt.BackgroundTransparency = 1
-            txt.TextColor3 = color
-            txt.TextStrokeTransparency = 0
-            txt.Font = Enum.Font.GothamBold
-            txt.TextSize = 13
-            txt.Text = ""
-            txt.Parent = bb
-
+            hl = Instance.new("Highlight"); hl.Name = espID; hl.Adornee = obj; hl.Parent = ESPFolder
+            hl.FillColor = color; hl.OutlineColor = Color3.fromRGB(255, 255, 255); hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
+            local bb = Instance.new("BillboardGui"); bb.Adornee = obj; bb.Size = UDim2.new(0, 200, 0, 50); bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true; bb.Parent = hl
+            local txt = Instance.new("TextLabel"); txt.Name = "InfoText"; txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1; txt.TextColor3 = color; txt.TextStrokeTransparency = 0; txt.Font = Enum.Font.GothamBold; txt.TextSize = 13; txt.Parent = bb
             obj.AncestryChanged:Connect(function(_, parent) if not parent then hl:Destroy() end end)
         end
         if hl and hl:FindFirstChild("BillboardGui") then
@@ -853,8 +673,7 @@ do
                         if p and p:IsA("NumberValue") then
                             local espID = obj:GetDebugId().."_GEN"
                             if p.Value >= 100 then
-                                local existing = ESPFolder:FindFirstChild(espID)
-                                if existing then existing:Destroy() end
+                                local existing = ESPFolder:FindFirstChild(espID); if existing then existing:Destroy() end
                             else
                                 local prog = math.floor(p.Value)
                                 local dist = GetDist(obj)
@@ -874,15 +693,80 @@ do
     getgenv().InfStamina = false
     Tabs.Player:AddToggle("InfStamina", { Title = "Infinite Stamina", Default = false, Callback = function(V) 
         getgenv().InfStamina = V 
-        if V then 
-            task.spawn(function()
-                while getgenv().InfStamina do 
-                    task.wait()
-                    pcall(function() require(game.ReplicatedStorage.Systems.Character.Game.Sprinting).Stamina = 100 end) 
-                end 
-            end) 
-        end 
+        if V then task.spawn(function() while getgenv().InfStamina do task.wait(); pcall(function() require(game.ReplicatedStorage.Systems.Character.Game.Sprinting).Stamina = 100 end) end end) end 
     end })
+end
+
+-- =================================================================
+-- [THÊM MỚI] ITEM ESP V3 (INSTANT HIDE)
+-- =================================================================
+do
+    getgenv().ItemESPActive = false
+    local ItemESPFolder = Instance.new("Folder", game.CoreGui); ItemESPFolder.Name = "Amethyst_ItemESP"
+    local Workspace = game:GetService("Workspace")
+
+    local function IsValidGroundItem(item)
+        if not item or not item.Parent then return false end
+        if not item:IsDescendantOf(Workspace) then return false end
+        if item.Parent:FindFirstChild("Humanoid") then return false end
+        return true
+    end
+
+    local function CreateItemESP(obj, color, text)
+        local id = obj:GetDebugId()
+        if ItemESPFolder:FindFirstChild(id) then return end
+
+        local hl = Instance.new("Highlight")
+        hl.Name = id; hl.Adornee = obj; hl.Parent = ItemESPFolder
+        hl.FillColor = color; hl.OutlineColor = Color3.new(1, 1, 1)
+        hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
+        
+        local bb = Instance.new("BillboardGui")
+        bb.Adornee = obj; bb.Size = UDim2.new(0, 100, 0, 50); bb.StudsOffset = Vector3.new(0, 2, 0); bb.AlwaysOnTop = true; bb.Parent = hl
+        
+        local label = Instance.new("TextLabel", bb)
+        label.Size = UDim2.new(1, 0, 1, 0); label.BackgroundTransparency = 1
+        label.Text = text; label.TextColor3 = color; label.TextStrokeTransparency = 0
+        label.Font = Enum.Font.GothamBold; label.TextSize = 12
+
+        local conn; conn = obj.AncestryChanged:Connect(function(_, newParent)
+            if not newParent or not IsValidGroundItem(obj) then
+                hl:Destroy()
+                if conn then conn:Disconnect() end
+            end
+        end)
+    end
+
+    local function ScanItems()
+        if not getgenv().ItemESPActive then ItemESPFolder:ClearAllChildren(); return end
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if (obj:IsA("Model") or obj:IsA("Tool")) and IsValidGroundItem(obj) then
+                local name = obj.Name:lower()
+                if name:find("medkit") or name:find("med kit") then
+                    CreateItemESP(obj, Color3.fromRGB(0, 255, 0), "MEDKIT")
+                elseif name:find("bloxy cola") or name:find("cola") or name:find("soda") then
+                    CreateItemESP(obj, Color3.fromRGB(255, 100, 0), "COLA")
+                end
+            end
+        end
+    end
+
+    task.spawn(function()
+        while true do
+            if getgenv().ItemESPActive then ScanItems() end
+            task.wait(1)
+        end
+    end)
+
+    Tabs.Player:AddToggle("ItemESPToggle", { 
+        Title = "Item ESP (Medkit/Cola)", 
+        Description = "Hiện vật phẩm dưới đất (Xanh/Cam)", 
+        Default = false, 
+        Callback = function(v) 
+            getgenv().ItemESPActive = v 
+            if not v then ItemESPFolder:ClearAllChildren() end 
+        end 
+    })
 end
 
 SaveManager:SetLibrary(Fluent)
@@ -891,5 +775,5 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 Window:SelectTab(1)
 
-Fluent:Notify({ Title = "AMETHYST HUB V1.0", Content = "Fosaken Edition Loaded!", Duration = 5 })
+Fluent:Notify({ Title = "AMETHYST V1.0", Content = "Veeronica & Item ESP Integrated!", Duration = 5 })
 SaveManager:LoadAutoloadConfig()
